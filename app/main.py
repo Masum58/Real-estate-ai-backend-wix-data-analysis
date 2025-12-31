@@ -1,6 +1,7 @@
 import os
 from dotenv import load_dotenv
 from fastapi import FastAPI
+from fastapi.middleware.cors import CORSMiddleware
 
 from app.api.run_valuation import router as valuation_router
 
@@ -19,7 +20,23 @@ app = FastAPI(
 )
 
 # --------------------------------------------------
-# Root endpoint (for browser / client confidence)
+# 🔥 CORS CONFIG (REQUIRED FOR WIX)
+# --------------------------------------------------
+app.add_middleware(
+    CORSMiddleware,
+    allow_origins=[
+        "https://dev-sitex-1858428749.wix-development-sites.org",
+        "https://www.wix.com",
+        "https://*.wixsite.com",
+        "https://*.wix-development-sites.org",
+    ],
+    allow_credentials=True,
+    allow_methods=["*"],   # POST, OPTIONS, etc.
+    allow_headers=["*"],   # Content-Type, Authorization, etc.
+)
+
+# --------------------------------------------------
+# Root endpoint (browser confidence check)
 # --------------------------------------------------
 @app.get("/")
 def root():
@@ -29,7 +46,7 @@ def root():
     }
 
 # --------------------------------------------------
-# Health check endpoint (for monitoring)
+# Health check endpoint
 # --------------------------------------------------
 @app.get("/health")
 def health_check():
