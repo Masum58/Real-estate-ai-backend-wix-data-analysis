@@ -11,6 +11,9 @@ from app.services.feature_builder import FeatureBuilder
 from app.ai.prompt_builder import PromptBuilder
 from app.services.openai_service import generate_ai_summary
 
+# --------------------------------------------------
+# Load env
+# --------------------------------------------------
 load_dotenv()
 
 router = APIRouter()
@@ -24,8 +27,9 @@ if not RAW_DATA_API_URL:
 if not CLEAN_DATA_POST_URL:
     raise ValueError("CLEAN_DATA_POST_URL missing")
 
-
-# -------- Request from Wix Form --------
+# --------------------------------------------------
+# Request from Wix Form
+# --------------------------------------------------
 class ValuationRequest(BaseModel):
     address: str
     bedrooms: int
@@ -37,7 +41,9 @@ class ValuationRequest(BaseModel):
     email: EmailStr
 
 
-# -------- Response to Wix --------
+# --------------------------------------------------
+# Response to Wix
+# --------------------------------------------------
 class ValuationResponse(BaseModel):
     success: bool
     itemId: str | None
@@ -45,41 +51,46 @@ class ValuationResponse(BaseModel):
     price_max: int
 
 
+# --------------------------------------------------
+# Helpers
+# --------------------------------------------------
 def fetch_clean_mls_data():
-    response = requests.get(RAW_DATA_API_URL, timeout=30)
-    response.raise_for_status()
-    return response.json().get("items", [])
+    resp = requests.get(RAW_DATA_API_URL, timeout=30)
+    resp.raise_for_status()
+    return resp.json().get("items", [])
 
 
+# --------------------------------------------------
+# Main API
+# --------------------------------------------------
 @router.post("/run-valuation", response_model=ValuationResponse)
 def run_valuation(payload: ValuationRequest):
     try:
-        # 1. Subject property
+        # 1️⃣ Build subject property
         subject = SubjectProperty(**payload.model_dump())
 
-        # 2. MLS
+        # 2️⃣ Fetch MLS data
         mls_data = fetch_clean_mls_data()
         if not mls_data:
             raise Exception("MLS data empty")
 
-        # 3. Comparables
+        # 3️⃣ Select comparables
         selector = ComparableSelector(subject)
         comparables = selector.select(mls_data)
-
         if not comparables:
-            raise Exception("No comparables found")
+            raise Exception("No comparable properties found")
 
-        # 4. Features
+        # 4️⃣ Build features
         features = FeatureBuilder.build(
             comparables=comparables,
             condition_score=subject.condition_score
         )
 
-        # 5. Prompt + AI
+        # 5️⃣ AI prompt + summary
         prompt = PromptBuilder.build(subject, features)
         ai_summary = generate_ai_summary(prompt)
 
-        # 6. Save to Wix CMS
+        # 6️⃣ Save to Wix CMS
         wix_payload = {
             "address": subject.address,
             "email": subject.email,
@@ -96,8 +107,18 @@ def run_valuation(payload: ValuationRequest):
         wix_resp.raise_for_status()
 
         wix_json = wix_resp.json()
-        item_id = wix_json.get("_id")  # optional
 
+        # 🔥 FIX: extract ID from ANY Wix response shape
+        item_id = (
+            wix_json.get("_id")
+            or wix_json.get("item", {}).get("_id")
+            or wix_json.get("data", {}).get("_id")
+        )
+
+        if not item_id:
+            print("⚠️ Wix response (no id found):", wix_json)
+
+        # 7️⃣ Return to Wix frontend
         return {
             "success": True,
             "itemId": item_id,
@@ -106,7 +127,7 @@ def run_valuation(payload: ValuationRequest):
         }
 
     except Exception as e:
-        print("ERROR TRACE:")
+        print("❌ ERROR TRACE:")
         print(traceback.format_exc())
 
         raise HTTPException(
