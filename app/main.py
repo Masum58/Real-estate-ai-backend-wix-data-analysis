@@ -6,7 +6,7 @@ from fastapi.middleware.cors import CORSMiddleware
 from app.api.run_valuation import router as valuation_router
 
 # --------------------------------------------------
-# Load environment variables from .env
+# Load environment variables
 # --------------------------------------------------
 load_dotenv()
 
@@ -20,23 +20,18 @@ app = FastAPI(
 )
 
 # --------------------------------------------------
-# 🔥 CORS CONFIG (REQUIRED FOR WIX)
+# 🔥 CORS CONFIG (FIXED FOR WIX)
 # --------------------------------------------------
 app.add_middleware(
     CORSMiddleware,
-    allow_origins=[
-        "https://dev-sitex-1858428749.wix-development-sites.org",
-        "https://www.wix.com",
-        "https://*.wixsite.com",
-        "https://*.wix-development-sites.org",
-    ],
+    allow_origin_regex=r"https://.*\.wix-development-sites\.org|https://.*\.wixsite\.com|https://www\.wix\.com",
     allow_credentials=True,
-    allow_methods=["*"],   # POST, OPTIONS, etc.
-    allow_headers=["*"],   # Content-Type, Authorization, etc.
+    allow_methods=["*"],     # POST, OPTIONS, GET
+    allow_headers=["*"],     # Content-Type, Authorization
 )
 
 # --------------------------------------------------
-# Root endpoint (browser confidence check)
+# Root endpoint
 # --------------------------------------------------
 @app.get("/")
 def root():

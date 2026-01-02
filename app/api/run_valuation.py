@@ -28,7 +28,7 @@ if not CLEAN_DATA_POST_URL:
     raise ValueError("CLEAN_DATA_POST_URL missing")
 
 # --------------------------------------------------
-# Request from Wix Form
+# Request from Wix
 # --------------------------------------------------
 class ValuationRequest(BaseModel):
     address: str
@@ -46,7 +46,7 @@ class ValuationRequest(BaseModel):
 # --------------------------------------------------
 class ValuationResponse(BaseModel):
     success: bool
-    itemId: str | None
+    itemId: str
     price_min: int
     price_max: int
 
@@ -60,33 +60,52 @@ def fetch_clean_mls_data():
     return resp.json().get("items", [])
 
 
+def extract_wix_item_id(wix_json: dict) -> str:
+    """
+    Wix CMS can return ID in different shapes.
+    This function GUARANTEES extracting it.
+    """
+    if "_id" in wix_json:
+        return wix_json["_id"]
+
+    if "item" in wix_json and isinstance(wix_json["item"], dict):
+        if "_id" in wix_json["item"]:
+            return wix_json["item"]["_id"]
+
+    if "data" in wix_json and isinstance(wix_json["data"], dict):
+        if "_id" in wix_json["data"]:
+            return wix_json["data"]["_id"]
+
+    raise Exception(f"Wix item ID not found in response: {wix_json}")
+
+
 # --------------------------------------------------
 # Main API
 # --------------------------------------------------
 @router.post("/run-valuation", response_model=ValuationResponse)
 def run_valuation(payload: ValuationRequest):
     try:
-        # 1️⃣ Build subject property
+        # 1️⃣ Subject property
         subject = SubjectProperty(**payload.model_dump())
 
-        # 2️⃣ Fetch MLS data
+        # 2️⃣ MLS data
         mls_data = fetch_clean_mls_data()
         if not mls_data:
             raise Exception("MLS data empty")
 
-        # 3️⃣ Select comparables
+        # 3️⃣ Comparables
         selector = ComparableSelector(subject)
         comparables = selector.select(mls_data)
         if not comparables:
             raise Exception("No comparable properties found")
 
-        # 4️⃣ Build features
+        # 4️⃣ Features
         features = FeatureBuilder.build(
             comparables=comparables,
             condition_score=subject.condition_score
         )
 
-        # 5️⃣ AI prompt + summary
+        # 5️⃣ AI summary
         prompt = PromptBuilder.build(subject, features)
         ai_summary = generate_ai_summary(prompt)
 
@@ -108,15 +127,8 @@ def run_valuation(payload: ValuationRequest):
 
         wix_json = wix_resp.json()
 
-        # 🔥 FIX: extract ID from ANY Wix response shape
-        item_id = (
-            wix_json.get("_id")
-            or wix_json.get("item", {}).get("_id")
-            or wix_json.get("data", {}).get("_id")
-        )
-
-        if not item_id:
-            print("⚠️ Wix response (no id found):", wix_json)
+        # ✅ GUARANTEED ID extraction
+        item_id = extract_wix_item_id(wix_json)
 
         # 7️⃣ Return to Wix frontend
         return {
