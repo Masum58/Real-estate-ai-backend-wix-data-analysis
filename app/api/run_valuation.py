@@ -1,4 +1,4 @@
-from fastapi import APIRouter, HTTPException, Response
+from fastapi import APIRouter, HTTPException
 from fastapi.responses import JSONResponse
 from pydantic import BaseModel, EmailStr
 import os
@@ -45,16 +45,19 @@ def fetch_clean_mls_data():
     resp.raise_for_status()
     return resp.json().get("items", [])
 
+# 🔥 EXPLICIT OPTIONS HANDLER
 @router.options("/run-valuation")
 async def run_valuation_options():
-    """Handle preflight CORS requests"""
-    return Response(
+    """Handle preflight CORS requests explicitly"""
+    return JSONResponse(
+        content={"status": "ok"},
         status_code=200,
         headers={
             "Access-Control-Allow-Origin": "*",
-            "Access-Control-Allow-Methods": "POST, OPTIONS",
-            "Access-Control-Allow-Headers": "Content-Type, Authorization",
-            "Access-Control-Max-Age": "600"
+            "Access-Control-Allow-Methods": "POST, OPTIONS, GET, PUT, DELETE",
+            "Access-Control-Allow-Headers": "Content-Type, Authorization, Accept, Origin, X-Requested-With",
+            "Access-Control-Max-Age": "3600",
+            "Access-Control-Allow-Credentials": "true"
         }
     )
 
@@ -109,7 +112,7 @@ def run_valuation(payload: ValuationRequest):
         
         print(f"✅ Wix response: {wix_json}")
 
-        # 🔥 CORRECT ID EXTRACTION
+        # Extract item ID
         item_id = (
             wix_json.get("_id")
             or wix_json.get("item", {}).get("_id")
@@ -128,11 +131,15 @@ def run_valuation(payload: ValuationRequest):
         
         print(f"✅ Sending response: {response_data}")
         
+        # 🔥 RETURN WITH EXPLICIT CORS HEADERS
         return JSONResponse(
             content=response_data,
+            status_code=200,
             headers={
                 "Access-Control-Allow-Origin": "*",
-                "Access-Control-Allow-Credentials": "true"
+                "Access-Control-Allow-Credentials": "true",
+                "Access-Control-Allow-Methods": "POST, OPTIONS",
+                "Access-Control-Allow-Headers": "Content-Type, Authorization"
             }
         )
 
@@ -140,9 +147,25 @@ def run_valuation(payload: ValuationRequest):
         error_msg = f"External API error: {str(e)}"
         print(f"❌ {error_msg}")
         print(traceback.format_exc())
-        raise HTTPException(status_code=502, detail=error_msg)
+        
+        return JSONResponse(
+            content={"detail": error_msg},
+            status_code=502,
+            headers={
+                "Access-Control-Allow-Origin": "*",
+                "Access-Control-Allow-Credentials": "true"
+            }
+        )
     
     except Exception as e:
         print("❌ ERROR TRACE:")
         print(traceback.format_exc())
-        raise HTTPException(status_code=500, detail=str(e))
+        
+        return JSONResponse(
+            content={"detail": str(e)},
+            status_code=500,
+            headers={
+                "Access-Control-Allow-Origin": "*",
+                "Access-Control-Allow-Credentials": "true"
+            }
+        )

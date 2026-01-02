@@ -14,7 +14,9 @@ app = FastAPI(
     description="Backend API for AI-powered real estate valuation using MLS data"
 )
 
-# 🔥 CORS CONFIGURATION FOR WIX
+# 🔥 CRITICAL: CORS MUST BE CONFIGURED BEFORE ANY ROUTES
+# This fixes the "No 'Access-Control-Allow-Origin' header" error
+
 app.add_middleware(
     CORSMiddleware,
     allow_origins=[
@@ -22,34 +24,32 @@ app.add_middleware(
         "https://*.wixsite.com",
         "https://*.wix.com",
         "http://localhost:3000",
-        "http://127.0.0.1:3000"
+        "http://127.0.0.1:3000",
+        "*"  # Allow all origins temporarily for testing
     ],
     allow_credentials=True,
-    allow_methods=["GET", "POST", "PUT", "DELETE", "OPTIONS", "PATCH"],
-    allow_headers=[
-        "Content-Type",
-        "Authorization",
-        "Accept",
-        "Origin",
-        "X-Requested-With",
-        "Access-Control-Request-Method",
-        "Access-Control-Request-Headers"
-    ],
+    allow_methods=["*"],  # Allow all methods including OPTIONS
+    allow_headers=["*"],  # Allow all headers
     expose_headers=["*"],
-    max_age=600
+    max_age=3600  # Cache preflight for 1 hour
 )
 
 @app.get("/")
 def root():
     return {
         "status": "ok",
-        "message": "Real Estate AI Valuation API is running"
+        "message": "Real Estate AI Valuation API is running",
+        "cors": "enabled"
     }
 
 @app.get("/health")
 def health_check():
-    return {"status": "healthy"}
+    return {
+        "status": "healthy",
+        "cors": "enabled"
+    }
 
+# Include router AFTER CORS middleware
 app.include_router(
     valuation_router,
     prefix="/api",
@@ -58,9 +58,10 @@ app.include_router(
 
 if __name__ == "__main__":
     import uvicorn
+    port = int(os.getenv("PORT", 8000))
     uvicorn.run(
         "app.main:app",
         host="0.0.0.0",
-        port=8000,
-        reload=True
+        port=port,
+        reload=False  # Don't use reload in production
     )
