@@ -5,34 +5,24 @@ from fastapi.middleware.cors import CORSMiddleware
 
 from app.api.run_valuation import router as valuation_router
 
-# --------------------------------------------------
-# Load environment variables
-# --------------------------------------------------
+# Load env
 load_dotenv()
 
-# --------------------------------------------------
-# Create FastAPI app
-# --------------------------------------------------
 app = FastAPI(
     title="Real Estate AI Valuation API",
     version="1.0.0",
     description="Backend API for AI-powered real estate valuation using MLS data"
 )
 
-# --------------------------------------------------
-# 🔥 CORS CONFIG (FIXED FOR WIX)
-# --------------------------------------------------
+# 🔥 CORS – ALLOW ALL (FIXES WIX ISSUE)
 app.add_middleware(
     CORSMiddleware,
-    allow_origin_regex=r"https://.*\.wix-development-sites\.org|https://.*\.wixsite\.com|https://www\.wix\.com",
+    allow_origins=["*"],          # 👈 IMPORTANT
     allow_credentials=True,
-    allow_methods=["*"],     # POST, OPTIONS, GET
-    allow_headers=["*"],     # Content-Type, Authorization
+    allow_methods=["*"],
+    allow_headers=["*"],
 )
 
-# --------------------------------------------------
-# Root endpoint
-# --------------------------------------------------
 @app.get("/")
 def root():
     return {
@@ -40,28 +30,18 @@ def root():
         "message": "Real Estate AI Valuation API is running"
     }
 
-# --------------------------------------------------
-# Health check endpoint
-# --------------------------------------------------
 @app.get("/health")
 def health_check():
     return {"status": "healthy"}
 
-# --------------------------------------------------
-# Register API routes
-# --------------------------------------------------
 app.include_router(
     valuation_router,
     prefix="/api",
     tags=["Valuation"]
 )
 
-# --------------------------------------------------
-# Local development entry point
-# --------------------------------------------------
 if __name__ == "__main__":
     import uvicorn
-
     uvicorn.run(
         "app.main:app",
         host="0.0.0.0",

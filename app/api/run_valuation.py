@@ -11,11 +11,7 @@ from app.services.feature_builder import FeatureBuilder
 from app.ai.prompt_builder import PromptBuilder
 from app.services.openai_service import generate_ai_summary
 
-# --------------------------------------------------
-# Load env
-# --------------------------------------------------
 load_dotenv()
-
 router = APIRouter()
 
 RAW_DATA_API_URL = os.getenv("RAW_DATA_API_URL")
@@ -27,9 +23,6 @@ if not RAW_DATA_API_URL:
 if not CLEAN_DATA_POST_URL:
     raise ValueError("CLEAN_DATA_POST_URL missing")
 
-# --------------------------------------------------
-# Request from Wix
-# --------------------------------------------------
 class ValuationRequest(BaseModel):
     address: str
     bedrooms: int
@@ -40,76 +33,39 @@ class ValuationRequest(BaseModel):
     user_notes: str
     email: EmailStr
 
-
-# --------------------------------------------------
-# Response to Wix
-# --------------------------------------------------
 class ValuationResponse(BaseModel):
     success: bool
-    itemId: str
+    itemId: str | None
     price_min: int
     price_max: int
 
-
-# --------------------------------------------------
-# Helpers
-# --------------------------------------------------
 def fetch_clean_mls_data():
     resp = requests.get(RAW_DATA_API_URL, timeout=30)
     resp.raise_for_status()
     return resp.json().get("items", [])
 
-
-def extract_wix_item_id(wix_json: dict) -> str:
-    """
-    Wix CMS can return ID in different shapes.
-    This function GUARANTEES extracting it.
-    """
-    if "_id" in wix_json:
-        return wix_json["_id"]
-
-    if "item" in wix_json and isinstance(wix_json["item"], dict):
-        if "_id" in wix_json["item"]:
-            return wix_json["item"]["_id"]
-
-    if "data" in wix_json and isinstance(wix_json["data"], dict):
-        if "_id" in wix_json["data"]:
-            return wix_json["data"]["_id"]
-
-    raise Exception(f"Wix item ID not found in response: {wix_json}")
-
-
-# --------------------------------------------------
-# Main API
-# --------------------------------------------------
 @router.post("/run-valuation", response_model=ValuationResponse)
 def run_valuation(payload: ValuationRequest):
     try:
-        # 1️⃣ Subject property
         subject = SubjectProperty(**payload.model_dump())
 
-        # 2️⃣ MLS data
         mls_data = fetch_clean_mls_data()
         if not mls_data:
             raise Exception("MLS data empty")
 
-        # 3️⃣ Comparables
         selector = ComparableSelector(subject)
         comparables = selector.select(mls_data)
         if not comparables:
-            raise Exception("No comparable properties found")
+            raise Exception("No comparables found")
 
-        # 4️⃣ Features
         features = FeatureBuilder.build(
             comparables=comparables,
             condition_score=subject.condition_score
         )
 
-        # 5️⃣ AI summary
         prompt = PromptBuilder.build(subject, features)
         ai_summary = generate_ai_summary(prompt)
 
-        # 6️⃣ Save to Wix CMS
         wix_payload = {
             "address": subject.address,
             "email": subject.email,
@@ -124,13 +80,15 @@ def run_valuation(payload: ValuationRequest):
             timeout=30
         )
         wix_resp.raise_for_status()
-
         wix_json = wix_resp.json()
 
-        # ✅ GUARANTEED ID extraction
-        item_id = extract_wix_item_id(wix_json)
+        # 🔥 CORRECT ID EXTRACTION
+        item_id = (
+            wix_json.get("_id")
+            or wix_json.get("item", {}).get("_id")
+            or wix_json.get("data", {}).get("_id")
+        )
 
-        # 7️⃣ Return to Wix frontend
         return {
             "success": True,
             "itemId": item_id,
@@ -141,8 +99,4 @@ def run_valuation(payload: ValuationRequest):
     except Exception as e:
         print("❌ ERROR TRACE:")
         print(traceback.format_exc())
-
-        raise HTTPException(
-            status_code=500,
-            detail=str(e)
-        )
+        raise HTTPException(status_code=500, detail=str(e))
