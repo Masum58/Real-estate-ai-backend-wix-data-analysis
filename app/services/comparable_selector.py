@@ -8,7 +8,7 @@ class ComparableSelector:
     Selects relevant MLS comparable properties
     based on the subject property.
     
-    🔥 NEW: Now includes location-based filtering!
+    🔥 UPDATED: Now matches actual MLS data field names!
     """
 
     def __init__(self, subject: SubjectProperty):
@@ -44,31 +44,25 @@ class ComparableSelector:
         """
         Decide whether a MLS record is a valid comparable.
         
-        🔥 NEW: Added location filtering!
+        🔥 UPDATED: Now uses actual field names from MLS data!
         """
 
         # ============================================
-        # 🔥 LOCATION FILTERS (NEW!)
+        # 🔥 LOCATION FILTERS
         # ============================================
         
         # Filter 1: City match (REQUIRED)
-        comp_city = comp.get("City", "").strip().lower()
+        comp_city = comp.get("city", "").strip().lower()  # 🔥 FIXED: lowercase "city"
         subject_city = self.subject.city.strip().lower()
         
         if comp_city != subject_city:
             return False
         
         # Filter 2: State match (REQUIRED if provided)
-        comp_state = comp.get("StateOrProvince", "").strip().upper()
-        subject_state = self.subject.state.strip().upper()
-        
-        # Note: MLS data might not have State field, so we're lenient here
-        if comp_state and subject_state:
-            if comp_state != subject_state:
-                return False
+        # Note: Your MLS data doesn't have state field, so skipping this
         
         # Filter 3: Zip code proximity (within same zip or adjacent)
-        comp_zip = str(comp.get("PostalCode", "")).strip()
+        comp_zip = str(comp.get("zip", "")).strip()  # 🔥 FIXED: lowercase "zip"
         subject_zip = str(self.subject.zip_code).strip()
         
         # If zip codes are very different (>100 apart), likely too far
@@ -82,8 +76,8 @@ class ComparableSelector:
         
         # Filter 4: Distance check (if coordinates available)
         if self.subject.latitude and self.subject.longitude:
-            comp_lat = comp.get("Latitude")
-            comp_lon = comp.get("Longitude")
+            comp_lat = comp.get("latitude")  # 🔥 FIXED: lowercase "latitude"
+            comp_lon = comp.get("longitude")  # 🔥 FIXED: lowercase "longitude"
             
             if comp_lat and comp_lon:
                 distance = self.calculate_distance(
@@ -98,20 +92,20 @@ class ComparableSelector:
                     return False
 
         # ============================================
-        # EXISTING FILTERS (Kept as is)
+        # PROPERTY FILTERS
         # ============================================
 
         # Bedrooms filter (+/- 1)
-        if abs(comp.get("BedroomsTotal", 0) - self.subject.bedrooms) > 1:
+        if abs(comp.get("bedrooms", 0) - self.subject.bedrooms) > 1:  # 🔥 FIXED: lowercase "bedrooms"
             return False
 
         # Bathrooms filter (+/- 1)
-        comp_baths = comp.get("BathroomsFull", 0) + (comp.get("BathroomsHalf", 0) * 0.5)
+        comp_baths = comp.get("bathrooms", 0)  # 🔥 FIXED: lowercase "bathrooms" (already combined)
         if abs(comp_baths - self.subject.bathrooms) > 1:
             return False
 
         # Square footage filter (+/- 25%)
-        sqft = comp.get("LivingArea", 0) or comp.get("BuildingAreaTotal", 0)
+        sqft = comp.get("areaSqft", 0)  # 🔥 FIXED: "areaSqft"
         if sqft <= 0:
             return False
 
@@ -122,13 +116,13 @@ class ComparableSelector:
             return False
 
         # Year built filter (+/- 20 years)
-        year_built = comp.get("YearBuilt")
+        year_built = comp.get("yearBuilt")  # 🔥 FIXED: camelCase "yearBuilt"
         if year_built:
             if abs(year_built - self.subject.year_built) > 20:
                 return False
 
         # Status filter (only closed sales)
-        status = comp.get("MlsStatus") or comp.get("StandardStatus") or comp.get("status")
+        status = comp.get("status")  # 🔥 FIXED: lowercase "status"
         if status != "Closed":
             return False
 
@@ -138,7 +132,7 @@ class ComparableSelector:
         """
         Return top relevant comparable properties.
         
-        🔥 NEW: Now sorts by distance if coordinates available!
+        🔥 UPDATED: Now uses actual field names!
         """
 
         selected = []
@@ -147,22 +141,21 @@ class ComparableSelector:
             if self.is_comparable(record):
                 selected.append(record)
 
-        # 🔥 NEW: Sort by distance if coordinates available, otherwise by sqft
+        # 🔥 Sort by distance if coordinates available, otherwise by sqft
         if self.subject.latitude and self.subject.longitude:
             selected.sort(
                 key=lambda x: self.calculate_distance(
                     self.subject.latitude,
                     self.subject.longitude,
-                    x.get("Latitude", 0),
-                    x.get("Longitude", 0)
+                    x.get("latitude", 0),  # 🔥 FIXED: lowercase
+                    x.get("longitude", 0)  # 🔥 FIXED: lowercase
                 )
             )
         else:
             # Fallback: Sort by closest square footage
             selected.sort(
                 key=lambda x: abs(
-                    (x.get("LivingArea", 0) or x.get("BuildingAreaTotal", 0)) 
-                    - self.subject.square_footage
+                    x.get("areaSqft", 0) - self.subject.square_footage  # 🔥 FIXED: "areaSqft"
                 )
             )
 
