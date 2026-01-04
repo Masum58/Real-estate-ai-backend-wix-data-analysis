@@ -26,6 +26,9 @@ if not CLEAN_DATA_POST_URL:
 
 class ValuationRequest(BaseModel):
     address: str
+    city: str          # 🔥 NEW
+    state: str         # 🔥 NEW
+    zip_code: str      # 🔥 NEW
     bedrooms: int
     bathrooms: int
     square_footage: int
@@ -64,7 +67,7 @@ async def run_valuation_options():
 @router.post("/run-valuation", response_model=ValuationResponse)
 def run_valuation(payload: ValuationRequest):
     try:
-        print(f"🔵 Received valuation request for: {payload.address}")
+        print(f"🔵 Received valuation request for: {payload.address}, {payload.city}, {payload.state} {payload.zip_code}")
         
         subject = SubjectProperty(**payload.model_dump())
 
@@ -77,9 +80,9 @@ def run_valuation(payload: ValuationRequest):
         selector = ComparableSelector(subject)
         comparables = selector.select(mls_data)
         if not comparables:
-            raise Exception("No comparables found")
+            raise Exception(f"No comparables found for {subject.city}, {subject.state}")
         
-        print(f"✅ Selected {len(comparables)} comparables")
+        print(f"✅ Selected {len(comparables)} comparables in {subject.city}, {subject.state}")
 
         features = FeatureBuilder.build(
             comparables=comparables,
@@ -95,6 +98,9 @@ def run_valuation(payload: ValuationRequest):
 
         wix_payload = {
             "address": subject.address,
+            "city": subject.city,           # 🔥 NEW
+            "state": subject.state,         # 🔥 NEW
+            "zip_code": subject.zip_code,   # 🔥 NEW
             "email": subject.email,
             "price_min": features["price_range"]["min"],
             "price_max": features["price_range"]["max"],

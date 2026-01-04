@@ -5,6 +5,8 @@ from app.models.subject_property import SubjectProperty
 class PromptBuilder:
     """
     Builds a safe, MLS-compliant prompt for AI price estimation.
+    
+    🔥 NEW: Now includes location context!
     """
 
     @staticmethod
@@ -17,13 +19,14 @@ Do NOT mention MLS, addresses, listing IDs, or any private data.
 Do NOT guarantee prices.
 
 Subject Property:
+- Location: {subject.city}, {subject.state} {subject.zip_code}
 - Bedrooms: {subject.bedrooms}
 - Bathrooms: {subject.bathrooms}
 - Square Footage: {subject.square_footage}
 - Year Built: {subject.year_built}
 - Condition Score (1–10): {subject.condition_score}
 
-Market Signals:
+Market Signals (from {subject.city}, {subject.state} area):
 - Number of comparable sales analyzed: {features['total_comparables']}
 - Average sale price of comparables: ${features['average_price']}
 - Average price per square foot: ${features['average_price_per_sqft']}
@@ -35,6 +38,7 @@ Estimated Value Range:
 
 Task:
 Write a clear, professional summary explaining the estimated market value range.
+Mention that this estimate is based on comparable sales in the {subject.city}, {subject.state} area.
 Explain how property condition and comparable sales influence the estimate.
 Avoid technical language.
 Limit the response to 4–6 sentences.

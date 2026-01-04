@@ -10,6 +10,13 @@ class SubjectProperty(BaseModel):
 
     address: str = Field(..., description="Full property address")
 
+    # 🔥 NEW: Location fields for better comparable matching
+    city: str = Field(..., description="City name")
+    
+    state: str = Field(..., description="State (e.g., NC, SC)")
+    
+    zip_code: str = Field(..., description="Postal/ZIP code")
+
     bedrooms: int = Field(..., gt=0, description="Number of bedrooms")
 
     bathrooms: float = Field(..., gt=0, description="Number of bathrooms")
@@ -33,4 +40,15 @@ class SubjectProperty(BaseModel):
     email: Optional[str] = Field(
         None,
         description="User email (not used in AI analysis)"
+    )
+
+    # 🔥 NEW: Optional lat/long for distance-based matching
+    latitude: Optional[float] = Field(
+        None,
+        description="Optional latitude for precise location matching"
+    )
+    
+    longitude: Optional[float] = Field(
+        None,
+        description="Optional longitude for precise location matching"
     )
