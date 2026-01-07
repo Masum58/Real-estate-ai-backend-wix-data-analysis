@@ -98,9 +98,9 @@ def run_valuation(payload: ValuationRequest):
 
         wix_payload = {
             "address": subject.address,
-            "city": subject.city,           # 🔥 NEW
-            "state": subject.state,         # 🔥 NEW
-            "zip_code": subject.zip_code,   # 🔥 NEW
+            "city": subject.city,
+            "state": subject.state,
+            "zipCode": subject.zip_code,   # 🔥 CHANGED to zipCode
             "email": subject.email,
             "price_min": features["price_range"]["min"],
             "price_max": features["price_range"]["max"],
