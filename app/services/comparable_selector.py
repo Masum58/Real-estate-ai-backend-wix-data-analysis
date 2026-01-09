@@ -8,7 +8,7 @@ class ComparableSelector:
     Selects relevant MLS comparable properties
     based on the subject property.
     
-    🔥 UPDATED: Now matches actual MLS data field names!
+    🔥 UPDATED: 1 mile radius, weight system, NC/SC cross-state support
     """
 
     def __init__(self, subject: SubjectProperty):
@@ -44,7 +44,7 @@ class ComparableSelector:
         """
         Decide whether a MLS record is a valid comparable.
         
-        🔥 UPDATED: Now uses actual field names from MLS data!
+        🔥 UPDATED: 1 mile radius MAX, NC/SC cross-state support
         """
 
         # ============================================
@@ -52,17 +52,36 @@ class ComparableSelector:
         # ============================================
         
         # Filter 1: City match (REQUIRED)
-        comp_city = comp.get("city", "").strip().lower()  # 🔥 FIXED: lowercase "city"
+        comp_city = comp.get("city", "").strip().lower()
         subject_city = self.subject.city.strip().lower()
         
         if comp_city != subject_city:
             return False
         
-        # Filter 2: State match (REQUIRED if provided)
-        # Note: Your MLS data doesn't have state field, so skipping this
+        # Filter 2: State match (FLEXIBLE for border properties)
+        comp_state = comp.get("state", "").strip().upper()
+        subject_state = self.subject.state.strip().upper()
+        
+        # Allow NC/SC cross-border comparables (client requirement: neighborhoods span state lines)
+        ALLOWED_STATE_PAIRS = [
+            {"NC", "SC"},  # North Carolina / South Carolina border
+        ]
+        
+        # Only enforce state matching if BOTH states are provided
+        if comp_state and subject_state:
+            # Exact match is always OK
+            if comp_state == subject_state:
+                pass  # Continue
+            # Check if states are in allowed cross-border pairs
+            elif any({comp_state, subject_state} == pair for pair in ALLOWED_STATE_PAIRS):
+                pass  # Allow cross-state comparables
+            else:
+                return False  # Different states not in allowed pairs
+        # If either state is missing, allow it (MLS data might not have state field)
+        # This allows Fort Mill and other properties to work even if state field is empty
         
         # Filter 3: Zip code proximity (within same zip or adjacent)
-        comp_zip = str(comp.get("zip", "")).strip()  # 🔥 FIXED: lowercase "zip"
+        comp_zip = str(comp.get("zip", "")).strip()
         subject_zip = str(self.subject.zip_code).strip()
         
         # If zip codes are very different (>100 apart), likely too far
@@ -74,10 +93,10 @@ class ComparableSelector:
             except (ValueError, TypeError):
                 pass  # If zip codes aren't numeric, skip this check
         
-        # Filter 4: Distance check (if coordinates available)
+        # Filter 4: Distance check - 1 MILE RADIUS MAX (client requirement)
         if self.subject.latitude and self.subject.longitude:
-            comp_lat = comp.get("latitude")  # 🔥 FIXED: lowercase "latitude"
-            comp_lon = comp.get("longitude")  # 🔥 FIXED: lowercase "longitude"
+            comp_lat = comp.get("latitude")
+            comp_lon = comp.get("longitude")
             
             if comp_lat and comp_lon:
                 distance = self.calculate_distance(
@@ -87,8 +106,8 @@ class ComparableSelector:
                     comp_lon
                 )
                 
-                # Reject if more than 15 miles away
-                if distance > 15:
+                # Reject if more than 1 mile away (client requirement: 1 mile radius MAX)
+                if distance > 1:
                     return False
 
         # ============================================
@@ -96,16 +115,16 @@ class ComparableSelector:
         # ============================================
 
         # Bedrooms filter (+/- 1)
-        if abs(comp.get("bedrooms", 0) - self.subject.bedrooms) > 1:  # 🔥 FIXED: lowercase "bedrooms"
+        if abs(comp.get("bedrooms", 0) - self.subject.bedrooms) > 1:
             return False
 
         # Bathrooms filter (+/- 1)
-        comp_baths = comp.get("bathrooms", 0)  # 🔥 FIXED: lowercase "bathrooms" (already combined)
+        comp_baths = comp.get("bathrooms", 0)
         if abs(comp_baths - self.subject.bathrooms) > 1:
             return False
 
         # Square footage filter (+/- 25%)
-        sqft = comp.get("areaSqft", 0)  # 🔥 FIXED: "areaSqft"
+        sqft = comp.get("areaSqft", 0)
         if sqft <= 0:
             return False
 
@@ -116,13 +135,13 @@ class ComparableSelector:
             return False
 
         # Year built filter (+/- 20 years)
-        year_built = comp.get("yearBuilt")  # 🔥 FIXED: camelCase "yearBuilt"
+        year_built = comp.get("yearBuilt")
         if year_built:
             if abs(year_built - self.subject.year_built) > 20:
                 return False
 
         # Status filter (only closed sales)
-        status = comp.get("status")  # 🔥 FIXED: lowercase "status"
+        status = comp.get("status")
         if status != "Closed":
             return False
 
@@ -132,30 +151,56 @@ class ComparableSelector:
         """
         Return top relevant comparable properties.
         
-        🔥 UPDATED: Now uses actual field names!
+        🔥 UPDATED: Distance-based weighting system - closer properties prioritized!
+        Client requirement: 1 mile radius max, weight system for proximity
         """
 
         selected = []
 
         for record in mls_records:
             if self.is_comparable(record):
+                # Calculate distance and add weight to record
+                if self.subject.latitude and self.subject.longitude:
+                    comp_lat = record.get("latitude", 0)
+                    comp_lon = record.get("longitude", 0)
+                    if comp_lat and comp_lon:
+                        distance = self.calculate_distance(
+                            self.subject.latitude,
+                            self.subject.longitude,
+                            comp_lat,
+                            comp_lon
+                        )
+                        record['_distance'] = distance
+                        
+                        # Weight system: closer = better (client requirement)
+                        # Properties within 0.1 miles get highest weight
+                        if distance < 0.1:
+                            record['_weight'] = 10.0  # Very close - immediate neighbors
+                        elif distance < 0.25:
+                            record['_weight'] = 8.0   # Close - same block
+                        elif distance < 0.5:
+                            record['_weight'] = 6.0   # Nearby - walking distance
+                        elif distance < 0.75:
+                            record['_weight'] = 4.0   # Moderate - short drive
+                        else:
+                            record['_weight'] = 2.0   # Far - edge of 1 mile radius
+                    else:
+                        record['_distance'] = float('inf')
+                        record['_weight'] = 1.0
+                else:
+                    record['_distance'] = float('inf')
+                    record['_weight'] = 1.0
+                    
                 selected.append(record)
 
-        # 🔥 Sort by distance if coordinates available, otherwise by sqft
+        # 🔥 Sort by distance (closest first) - implements weight system
         if self.subject.latitude and self.subject.longitude:
-            selected.sort(
-                key=lambda x: self.calculate_distance(
-                    self.subject.latitude,
-                    self.subject.longitude,
-                    x.get("latitude", 0),  # 🔥 FIXED: lowercase
-                    x.get("longitude", 0)  # 🔥 FIXED: lowercase
-                )
-            )
+            selected.sort(key=lambda x: x.get('_distance', float('inf')))
         else:
             # Fallback: Sort by closest square footage
             selected.sort(
                 key=lambda x: abs(
-                    x.get("areaSqft", 0) - self.subject.square_footage  # 🔥 FIXED: "areaSqft"
+                    x.get("areaSqft", 0) - self.subject.square_footage
                 )
             )
 
