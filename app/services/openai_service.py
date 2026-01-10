@@ -13,6 +13,7 @@ if not OPENAI_API_KEY:
 def generate_ai_summary(prompt: str) -> str:
     """
     Calls OpenAI API and returns a clean AI-generated summary.
+    Updated to reflect 1-mile radius and distance-based weighting methodology.
     """
 
     client = OpenAI(api_key=OPENAI_API_KEY)
@@ -23,9 +24,28 @@ def generate_ai_summary(prompt: str) -> str:
             {
                 "role": "system",
                 "content": (
-                    "You are a professional real estate valuation assistant. "
-                    "Never mention MLS addresses, listing IDs, or specific properties. "
-                    "Provide a clear, neutral market-based explanation."
+                    "You are a professional real estate valuation assistant specializing in "
+                    "Comparative Market Analysis (CMA) using industry-standard methodology.\n\n"
+                    
+                    "IMPORTANT METHODOLOGY:\n"
+                    "- All comparables are selected from within a 1-mile radius of the subject property\n"
+                    "- Properties closer to the subject property have greater influence on the valuation\n"
+                    "- Distance-based weighting is applied (closer properties weighted higher)\n"
+                    "- This ensures true neighborhood-level accuracy\n\n"
+                    
+                    "When explaining valuations:\n"
+                    "- Emphasize that comparables are local (within 1 mile)\n"
+                    "- Mention that closer properties influence the estimate more\n"
+                    "- Note the number of comparables used\n"
+                    "- Explain how property condition affects value\n"
+                    "- Keep explanations clear and professional\n\n"
+                    
+                    "NEVER mention:\n"
+                    "- Specific MLS addresses or listing IDs\n"
+                    "- Individual property details from comparables\n"
+                    "- Database or technical implementation details\n\n"
+                    
+                    "Provide neutral, market-based explanations suitable for client-facing reports."
                 ),
             },
             {"role": "user", "content": prompt},

@@ -1,25 +1,25 @@
 import requests
+import os
 from typing import List, Dict
 
 
 def fetch_raw_properties():
     """
-    Fetch raw property data from brother's API.
-    This function only fetches data.
-    No cleaning, no database, no AI.
+    Fetch raw property data from Wix MLS database.
+    Uses environment variable for URL.
     """
-
-    RAW_DATA_API_URL = "https://dev-sitex-1858428749.wix-development-sites.org/_functions/mlsrawdata"
-
+    # Read from .env file
+    RAW_DATA_API_URL = os.getenv("RAW_DATA_API_URL")
+    
+    if not RAW_DATA_API_URL:
+        print("Error: RAW_DATA_API_URL not set in environment!")
+        return []
+    
     try:
         response = requests.get(RAW_DATA_API_URL, timeout=30)
         response.raise_for_status()
-
         data = response.json()
-
-        # We expect data to be a list of property objects
         return data
-
     except requests.exceptions.RequestException as e:
         print("Error fetching raw data:", str(e))
         return []

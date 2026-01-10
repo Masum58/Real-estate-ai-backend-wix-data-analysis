@@ -5,51 +5,66 @@ from fastapi.middleware.cors import CORSMiddleware
 
 from app.api.run_valuation import router as valuation_router
 
-# Load env
+# Load environment variables
 load_dotenv()
 
 app = FastAPI(
     title="Real Estate AI Valuation API",
-    version="1.0.0",
-    description="Backend API for AI-powered real estate valuation using MLS data"
+    version="2.0.0",  # Updated to reflect 1-mile radius + weight system
+    description=(
+        "AI-powered real estate valuation API using MLS data. "
+        "Features 1-mile radius comparable selection with distance-based weighting."
+    )
 )
 
-# 🔥 CRITICAL: CORS MUST BE CONFIGURED BEFORE ANY ROUTES
-# This fixes the "No 'Access-Control-Allow-Origin' header" error
+# 🔥 CRITICAL: CORS MUST BE CONFIGURED BEFORE ROUTES
+# Allows Wix frontend to communicate with this API
 
 app.add_middleware(
     CORSMiddleware,
-    allow_origins=[
-        "https://dev-sitex-1858428749.wix-development-sites.org",
-        "https://*.wixsite.com",
-        "https://*.wix.com",
-        "http://localhost:3000",
-        "http://127.0.0.1:3000",
-        "*"  # Allow all origins temporarily for testing
-    ],
+    allow_origins=["*"],  # Allow all origins (suitable for public API)
     allow_credentials=True,
-    allow_methods=["*"],  # Allow all methods including OPTIONS
-    allow_headers=["*"],  # Allow all headers
+    allow_methods=["GET", "POST", "OPTIONS"],  # Specific methods we use
+    allow_headers=["*"],
     expose_headers=["*"],
     max_age=3600  # Cache preflight for 1 hour
 )
 
 @app.get("/")
 def root():
+    """
+    Root endpoint - API status check
+    """
     return {
-        "status": "ok",
-        "message": "Real Estate AI Valuation API is running",
-        "cors": "enabled"
+        "status": "online",
+        "service": "Real Estate AI Valuation API",
+        "version": "2.0.0",
+        "features": [
+            "1-mile radius comparable selection",
+            "Distance-based property weighting",
+            "NC/SC cross-state support",
+            "AI-powered market analysis"
+        ],
+        "cors": "enabled",
+        "endpoints": {
+            "health": "/health",
+            "valuation": "/api/run-valuation",
+            "docs": "/docs"
+        }
     }
 
 @app.get("/health")
 def health_check():
+    """
+    Health check endpoint for monitoring services (UptimeRobot, etc.)
+    """
     return {
         "status": "healthy",
-        "cors": "enabled"
+        "cors": "enabled",
+        "api_version": "2.0.0"
     }
 
-# Include router AFTER CORS middleware
+# Include valuation router AFTER CORS middleware
 app.include_router(
     valuation_router,
     prefix="/api",
@@ -63,5 +78,5 @@ if __name__ == "__main__":
         "app.main:app",
         host="0.0.0.0",
         port=port,
-        reload=False  # Don't use reload in production
+        reload=False  # Disable reload in production
     )
