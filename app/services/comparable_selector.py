@@ -8,7 +8,7 @@ class ComparableSelector:
     Selects relevant MLS comparable properties
     based on the subject property.
     
-    🔥 UPDATED: 1 mile radius, weight system, NC/SC cross-state support
+    🔥 UPDATED: 1 mile radius, weight system, handles MLS data structure
     """
 
     def __init__(self, subject: SubjectProperty):
@@ -44,7 +44,7 @@ class ComparableSelector:
         """
         Decide whether a MLS record is a valid comparable.
         
-        🔥 UPDATED: 1 mile radius MAX, NC/SC cross-state support
+        🔥 UPDATED: Handles MLS data structure (no state field, uses "street" for address)
         """
 
         # ============================================
@@ -58,27 +58,8 @@ class ComparableSelector:
         if comp_city != subject_city:
             return False
         
-        # Filter 2: State match (FLEXIBLE for border properties)
-        comp_state = comp.get("state", "").strip().upper()
-        subject_state = self.subject.state.strip().upper()
-        
-        # Allow NC/SC cross-border comparables (client requirement: neighborhoods span state lines)
-        ALLOWED_STATE_PAIRS = [
-            {"NC", "SC"},  # North Carolina / South Carolina border
-        ]
-        
-        # Only enforce state matching if BOTH states are provided
-        if comp_state and subject_state:
-            # Exact match is always OK
-            if comp_state == subject_state:
-                pass  # Continue
-            # Check if states are in allowed cross-border pairs
-            elif any({comp_state, subject_state} == pair for pair in ALLOWED_STATE_PAIRS):
-                pass  # Allow cross-state comparables
-            else:
-                return False  # Different states not in allowed pairs
-        # If either state is missing, allow it (MLS data might not have state field)
-        # This allows Fort Mill and other properties to work even if state field is empty
+        # Filter 2: State - Skip check (MLS data doesn't have state field)
+        # All Charlotte properties are NC by default
         
         # Filter 3: Zip code proximity (within same zip or adjacent)
         comp_zip = str(comp.get("zip", "")).strip()
@@ -106,9 +87,16 @@ class ComparableSelector:
                     comp_lon
                 )
                 
-                # Reject if more than 1 mile away (client requirement: 1 mile radius MAX)
+                # Reject if more than 1 mile away
                 if distance > 1:
                     return False
+            else:
+                # No coordinates in comp - skip this property
+                return False
+        else:
+            # Subject has no coordinates - can't filter by distance properly
+            # This shouldn't happen but handle gracefully
+            pass
 
         # ============================================
         # PROPERTY FILTERS
@@ -152,7 +140,6 @@ class ComparableSelector:
         Return top relevant comparable properties.
         
         🔥 UPDATED: Distance-based weighting system - closer properties prioritized!
-        Client requirement: 1 mile radius max, weight system for proximity
         """
 
         selected = []
@@ -173,7 +160,6 @@ class ComparableSelector:
                         record['_distance'] = distance
                         
                         # Weight system: closer = better (client requirement)
-                        # Properties within 0.1 miles get highest weight
                         if distance < 0.1:
                             record['_weight'] = 10.0  # Very close - immediate neighbors
                         elif distance < 0.25:
@@ -193,7 +179,7 @@ class ComparableSelector:
                     
                 selected.append(record)
 
-        # 🔥 Sort by distance (closest first) - implements weight system
+        # 🔥 Sort by distance (closest first)
         if self.subject.latitude and self.subject.longitude:
             selected.sort(key=lambda x: x.get('_distance', float('inf')))
         else:

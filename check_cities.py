@@ -1,7 +1,7 @@
 import requests
 import json
 
-url = "https://dev-sitex-1858428749.wix-development-sites.org/_functions/mlsrawdata?page=1&limit=1000"
+url = "https://fire-ai-mls-raw-data.vercel.app/mls-data-stream"
 response = requests.get(url, timeout=30)
 
 if response.status_code == 200:
