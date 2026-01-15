@@ -17,8 +17,8 @@ class SubjectProperty(BaseModel):
     square_footage: int = Field(..., gt=100, description="Total living area in sqft")
     year_built: int = Field(..., ge=1800, le=2100, description="Year the property was built")
     condition_score: int = Field(..., ge=1, le=10, description="User provided condition rating (1–10)")
-    user_notes: Optional[str] = Field(None, description="Optional notes provided by the user")
-    email: Optional[str] = Field(None, description="User email")
+    user_notes: Optional[str] = Field(default="", description="Optional notes provided by the user")  # Changed: default="" instead of None
+    email: str = Field(..., description="User email")  # Made required (remove Optional)
     latitude: Optional[float] = Field(None, description="Latitude for precise location matching")
     longitude: Optional[float] = Field(None, description="Longitude for precise location matching")
 
